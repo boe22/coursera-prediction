@@ -1,0 +1,85 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Remko Logemann"
+date: "February 13, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(randomForest)
+```
+
+## Data preperation
+
+Let us start by loading the training and testing datasets and view their dimensions.
+```{r cars}
+training <- read.csv('pml-training.csv', na.strings = c("","NA"))
+testing <- read.csv('pml-testing.csv', na.strings = c("","NA"))
+dim(training)
+dim(testing)
+```
+
+So both the training and test set consist of 160 features. Next step is to clean the dataset, here we choose the simplest approach to just ignore all features with missing values. As the number of features is rather large this might work already sufficiently. Also we remove the first seven columns they have no predictive value. 
+
+```{r}
+training <- training[8:length(training)]
+training <- training[, colSums(is.na(training)) == 0]
+
+testing <- testing[8:length(testing)]
+testing <- testing[, colSums(is.na(testing)) == 0]
+```
+
+## Partition data
+
+Next we split the training set into a training (70%) and validation (30%) part:
+```{r}
+PartData <- createDataPartition(training$classe, p=0.7, list=FALSE)
+trainingSet <- training[PartData, ]
+validationSet <- training[-PartData, ]
+```
+
+Next, let us check how the classe are divided in the trainingset: 
+
+```{r}
+plot(trainingSet$classe, main="Frequency of levels", xlab="classe", ylab="Frequency")
+```
+The figure above shows that the classe is distributed among the levels in the same order of magnetitude. Therefore no extra effort is required to balance the classe. 
+
+
+## Model training
+Next we train two models, a random forrest and general boosted machine:
+```{r}
+set.seed(1234)
+rf <- train(classe ~ ., data = trainingSet, method = "rf")
+```
+
+```{r}
+garbage <- capture.output(gbm <- train(classe ~ ., data = trainingSet, method = "gbm"))
+```
+
+```{r}
+lda <- train(classe ~ ., data = trainingSet, method = "lda")
+```
+
+
+```{r}
+pred_rf <- predict(rf, validationSet)
+pred_gbm <- predict(gbm, validationSet)
+pred_lda <- predict(lda, validationSet)
+
+confusionMatrix(pred_rf, validationSet$classe)
+confusionMatrix(pred_gbm, validationSet$classe)
+confusionMatrix(pred_lda, validationSet$classe)
+```
+
+If we compare the accuracy on the validation set of the three models, the random forest performs the best with $99.2\%$, followed by gbm with $96.2\5$ and lda with $70.2\%$. 
+Hence we apply the random forest model to the test set of 20: 
+```{r}
+predictTest <- predict(rf, testing)
+
+predictTest
+```
+
